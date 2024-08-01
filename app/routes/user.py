@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, status
-from sqlalchemy.orm  import Session
+from fastapi import APIRouter, BackgroundTasks, Depends, status, Header
+from fastapi.responses import JSONResponse
+from sqlalchemy.orm import Session
 from app.config.database import get_session
-from app.responses.user import UserResponse
-from app.schemas.user import RegisterUserRequest
+from app.responses.user import UserResponse, LoginResponse
+from app.schemas.user import RegisterUserRequest, VerifyUserRequest
 from app.services import user
+from fastapi.security import OAuth2PasswordRequestForm
 
 user_router = APIRouter(
     prefix="/users",
@@ -11,7 +13,46 @@ user_router = APIRouter(
     responses={404: {"description": "Not found"}},
 )
 
+guest_router = APIRouter(
+    prefix="/auth",
+    tags=["Auth"],
+    responses={404: {"description": "Not found"}},
+)
+
 
 @user_router.post("", status_code=status.HTTP_201_CREATED, response_model=UserResponse)
-async def register_user(data: RegisterUserRequest, session: Session = Depends(get_session)):
-    return await user.create_user_account(data, session)
+async def register_user(
+    data: RegisterUserRequest,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+):
+    return await user.create_user_account(data, session, background_tasks)
+
+
+@user_router.post("/verify", status_code=status.HTTP_200_OK)
+async def verify_user_account(
+    data: VerifyUserRequest,
+    background_tasks: BackgroundTasks,
+    session: Session = Depends(get_session),
+):
+    await user.activate_user_account(data, session, background_tasks)
+
+    return JSONResponse({"Message": "Account is activated successfully"})
+
+
+@guest_router.post(
+    "/login", status_code=status.HTTP_200_OK, response_model=LoginResponse
+)
+async def user_login(
+    data: OAuth2PasswordRequestForm = Depends(), session: Session = Depends(get_session)
+):
+    return await user.get_login_token(data, session)
+
+
+@guest_router.post(
+    "/refresh", status_code=status.HTTP_200_OK, response_model=LoginResponse
+)
+async def refresh_token(
+    refresh_token=Header(), session: Session = Depends(get_session)
+):
+    return await user.get_refresh_token(refresh_token, session)

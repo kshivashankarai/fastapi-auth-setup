@@ -8,3 +8,6 @@ alembic revision --autogenerate -m "create my table"
 alembic upgrade head
 
 alembic downgrade -1
+
+
+pytest --log-cli-level=INFO

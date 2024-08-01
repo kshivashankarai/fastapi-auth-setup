@@ -1,6 +1,12 @@
 from pydantic import BaseModel, EmailStr
 
+
 class RegisterUserRequest(BaseModel):
-    name:str
+    name: str
     email: EmailStr
-    password:str
+    password: str
+
+
+class VerifyUserRequest(BaseModel):
+    token: str
+    email: EmailStr

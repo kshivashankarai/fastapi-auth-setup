@@ -1,3 +1,4 @@
+from datetime import datetime
 import sys
 import os
 from typing import Generator
@@ -6,6 +7,7 @@ import pytest
 from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker
 from starlette.testclient import TestClient
+from app.config.email import fm
 
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
@@ -47,6 +49,7 @@ def client(app_test, test_session):
             pass
 
     app_test.dependency_overrides[get_session] = _test_db
+    # fm.config.SUPPRESS_SEND = 1
     return TestClient(app_test)
 
 
@@ -56,6 +59,36 @@ def user(test_session):
     model.name = USER_NAME
     model.email = USER_EMAIL
     model.password = hash_password(USER_PASSWORD)
+    model.updated_at = datetime.utcnow()
+    model.verified_at = datetime.utcnow()
+    model.is_active = True
+    test_session.add(model)
+    test_session.commit()
+    test_session.refresh(model)
+    return model
+
+
+@pytest.fixture(scope="function")
+def inactive_user(test_session):
+    model = User()
+    model.name = USER_NAME
+    model.email = USER_EMAIL
+    model.password = hash_password(USER_PASSWORD)
+    model.updated_at = datetime.utcnow()
+    model.is_active = False
+    test_session.add(model)
+    test_session.commit()
+    test_session.refresh(model)
+    return model
+
+
+@pytest.fixture(scope="function")
+def unverified_user(test_session):
+    model = User()
+    model.name = USER_NAME
+    model.email = USER_EMAIL
+    model.password = hash_password(USER_PASSWORD)
+    model.updated_at = datetime.utcnow()
     model.is_active = False
     test_session.add(model)
     test_session.commit()

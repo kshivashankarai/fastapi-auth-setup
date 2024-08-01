@@ -2,10 +2,13 @@ from fastapi import FastAPI
 
 from app.routes import user
 
+app = FastAPI(debug=True)
+
 
 def create_application():
     application = FastAPI()
     application.include_router(user.user_router)
+    application.include_router(user.guest_router)
     return application
 
 
