@@ -1,113 +1,64 @@
+from src.databases.main import get_session
+from src.modules.auth.dependencies import (
+    AccessTokenBearer,
+    RoleChecker,
+    RefreshTokenBearer,
+)
+from src.databases.models import Book
+from src import app
+from fastapi.testclient import TestClient
 from datetime import datetime
-import sys
-import os
-from typing import Generator
-
-from app.services.user import _generate_tokens
+from unittest.mock import Mock
 import pytest
-from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker
-from starlette.testclient import TestClient
-from app.config.email import fm
+import uuid
 
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-
-from app.main import app
-from app.config.database import Base, get_session
-from app.models.user import User
-from app.config.security import hash_password
-
-USER_NAME = "Shiva Shankar"
-USER_EMAIL = "shiva@email.com"
-USER_PASSWORD = "Shiva@123"
-
-engine = create_engine("sqlite:///./fastapi.db")
-SessionTesting = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+mock_session = Mock()
+mock_user_service = Mock()
+mock_book_service = Mock()
 
 
-@pytest.fixture(scope="function")
-def test_session() -> Generator:
-    session = SessionTesting()
-    try:
-        yield session
-    finally:
-        session.close()
+def get_mock_session():
+    yield mock_session
 
 
-@pytest.fixture(scope="function")
-def app_test():
-    Base.metadata.create_all(bind=engine)
-    yield app
-    Base.metadata.drop_all(bind=engine)
+access_token_bearer = AccessTokenBearer()
+refresh_token_bearer = RefreshTokenBearer()
+role_checker = RoleChecker(["admin"])
+
+app.dependency_overrides[get_session] = get_mock_session
+app.dependency_overrides[role_checker] = Mock()
+app.dependency_overrides[refresh_token_bearer] = Mock()
 
 
-@pytest.fixture(scope="function")
-def client(app_test, test_session):
-    def _test_db():
-        try:
-            yield test_session
-        finally:
-            pass
-
-    app_test.dependency_overrides[get_session] = _test_db
-    # fm.config.SUPPRESS_SEND = 1
-    return TestClient(app_test)
+@pytest.fixture
+def fake_session():
+    return mock_session
 
 
-@pytest.fixture(scope="function")
-def auth_client(app_test, test_session, user):
-    def _test_db():
-        try:
-            yield test_session
-        finally:
-            pass
-
-    app_test.dependency_overrides[get_session] = _test_db
-    fm.config.SUPPRESS_SEND = 1
-    data = _generate_tokens(user, test_session)
-    client = TestClient(app_test)
-    client.headers["Authorization"] = f"Bearer {data['access_token']}"
-    return client
+@pytest.fixture
+def fake_user_service():
+    return mock_user_service
 
 
-@pytest.fixture(scope="function")
-def user(test_session):
-    model = User()
-    model.name = USER_NAME
-    model.email = USER_EMAIL
-    model.password = hash_password(USER_PASSWORD)
-    model.updated_at = datetime.utcnow()
-    model.verified_at = datetime.utcnow()
-    model.is_active = True
-    test_session.add(model)
-    test_session.commit()
-    test_session.refresh(model)
-    return model
+@pytest.fixture
+def fake_book_service():
+    return mock_book_service
 
 
-@pytest.fixture(scope="function")
-def inactive_user(test_session):
-    model = User()
-    model.name = USER_NAME
-    model.email = USER_EMAIL
-    model.password = hash_password(USER_PASSWORD)
-    model.updated_at = datetime.utcnow()
-    model.is_active = False
-    test_session.add(model)
-    test_session.commit()
-    test_session.refresh(model)
-    return model
+@pytest.fixture
+def test_client():
+    return TestClient(app)
 
 
-@pytest.fixture(scope="function")
-def unverified_user(test_session):
-    model = User()
-    model.name = USER_NAME
-    model.email = USER_EMAIL
-    model.password = hash_password(USER_PASSWORD)
-    model.updated_at = datetime.utcnow()
-    model.is_active = False
-    test_session.add(model)
-    test_session.commit()
-    test_session.refresh(model)
-    return model
+@pytest.fixture
+def test_book():
+    return Book(
+        uid=uuid.uuid4(),
+        user_uid=uuid.uuid4(),
+        title="sample title",
+        description="sample description",
+        page_count=200,
+        language="English",
+        published_date=datetime.now(),
+        update_at=datetime.now(),
+    )
